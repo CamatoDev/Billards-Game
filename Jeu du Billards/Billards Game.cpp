@@ -1,0 +1,641 @@
+#include <SFML/Graphics.hpp>
+#include <SFML/Audio.hpp>
+#include <vector>
+#include <cmath>
+#include <iostream>
+
+// Fonction pour vérifier la collision avec les boutons
+bool ButtonCollision(float cursor_x, float cursor_y, const sf::RectangleShape& box, float box_width, float box_height) {
+    return cursor_x >= box.getPosition().x
+        && cursor_x < box.getPosition().x + box_width
+        && cursor_y >= box.getPosition().y
+        && cursor_y < box.getPosition().y + box_height;
+}
+
+// Fonction pour écrire du texte dans la fenêtre
+void WriteInWindow(sf::Font& font, sf::Text& text, const sf::String& str, float size = 60) {
+    text.setFont(font);
+    text.setString(str);
+    text.setCharacterSize(size);
+    text.setFillColor(size > 30 ? sf::Color::White : sf::Color::Green);
+    text.setStyle(sf::Text::Bold);
+}
+
+// Fonction pour charger une texture
+void LoadTexture(sf::Texture& texture, const std::string& path) {
+    if (!texture.loadFromFile(path)) {
+        std::cerr << "Erreur chargement de la texture." << std::endl;
+    }
+}
+
+// Fonction pour charger un son
+void LoadSourceSound(sf::SoundBuffer& buffer, const std::string& path) {
+    if (!buffer.loadFromFile(path)) {
+        std::cerr << "Erreur chargement du son" << std::endl;
+    }
+}
+
+// Fonction pour charger une police d'écriture
+void LoadFont(sf::Font& font, const std::string& path) {
+    if (!font.loadFromFile(path)) {
+        std::cerr << "Erreur chargement de la police d'écriture." << std::endl;
+    }
+}
+
+
+// Fonction pour configurer les boules en forme de triangle
+static void setupBalls(std::vector<sf::CircleShape>& balls, const sf::Texture& texture) {
+    const float radius = 15.0f;     // Rayon des boules
+    const float offsetX = 550.0f;  // Position horizontale du premier rang
+    const float offsetY = 350.0f;  // Position verticale du premier rang
+
+    for (int row = 0; row < 5; ++row) {            //Disposition par ligne 
+        for (int col = 0; col <= row; ++col) {     // Disposition des colonnes en fonction des lignes 
+            sf::CircleShape ball(radius);          // Création d'une boule 
+            ball.setTexture(&texture);             // On applique la texture 
+            ball.setOrigin(radius, radius);        // On définit l'origine au centre de la boule
+
+            float x = offsetX + (row * radius * 1.8f);  // le coefficient de multiplication en X
+            float y = offsetY + (col * radius * 2.1f) - (row * radius);     // le coefficient de multiplication en Y
+            ball.setPosition(x, y);     // On positionne la boule 
+            balls.push_back(ball);      // On ajoute la boule à notre vecteur de sf::CircleShape
+        }
+    }
+}
+
+
+// Fonction pour vérifier les collisions entre les boules et les bords de la table
+static void checkCollisionsWithTable(std::vector<sf::CircleShape>& balls, std::vector<sf::Vector2f>& velocities, const sf::FloatRect& tableBounds, sf::Sound& ballCollisionSound) {
+    const float radius = balls[0].getRadius();      // On récupère le rayon qui est le même pour toute les boules
+    for (size_t i = 0; i < balls.size(); ++i) {     // Pour chaque boule dans notre vecteur 
+        sf::Vector2f position = balls[i].getPosition();     // On récupère la position de la boule 
+        sf::Vector2f& velocity = velocities[i];             // On récupère la vitesse de déplacement de la boule 
+        float borderUp = 30.f;    // Valeur représentant l'écart entre le bord réel de l'image et ce de la table 
+        float borderDown = 30.f;    // Valeur représentant l'écart entre le bord réel de l'image et ce de la table 
+
+        // Vérifier collision avec le bord gauche
+        if (position.x - radius < tableBounds.left + borderUp) {
+            ballCollisionSound.play();      // On joue le son de collision avec la bordure 
+            velocity.x = -velocity.x;       // On inverse la vitesse de la boule suivant l'axe X 
+            balls[i].setPosition(tableBounds.left + borderUp + radius, position.y);
+        }
+        // Vérifier collision avec le bord droit
+        if (position.x + radius > tableBounds.left + tableBounds.width - borderDown) {
+            ballCollisionSound.play();      // On joue le son de collision avec la bordure 
+            velocity.x = -velocity.x;       // On inverse la vitesse de la boule suivant l'axe X 
+            balls[i].setPosition(tableBounds.left + tableBounds.width - borderDown - radius, position.y);
+        }
+        // Vérifier collision avec le bord supérieur
+        if (position.y - radius < tableBounds.top + borderUp) {
+            ballCollisionSound.play();      // On joue le son de collision avec la bordure 
+            velocity.y = -velocity.y;       // On inverse la vitesse de la boule suivant l'axe Y
+            balls[i].setPosition(position.x, tableBounds.top + borderUp + radius);
+        }
+        // Vérifier collision avec le bord inférieur
+        if (position.y + radius > tableBounds.top + tableBounds.height - borderDown) {
+            ballCollisionSound.play();      // On joue le son de collision avec la bordure 
+            velocity.y = -velocity.y;       // On inverse la vitesse de la boule suivant l'axe Y
+            balls[i].setPosition(position.x, tableBounds.top + tableBounds.height - borderDown - radius);
+        }
+    }
+}
+
+// Fonction pour vérifier les collisions entre les boules entre elles
+static void checkCollisionsBetweenBalls(std::vector<sf::CircleShape>& balls, std::vector<sf::Vector2f>& velocities, sf::Sound& ballCollisionSound) {
+    const float radius = balls[0].getRadius();
+    const float radiusSquared = radius * 2 * radius * 2;
+    const float mass = 18.4f;       // On définit la masse des boules 
+
+    for (size_t i = 0; i < balls.size(); ++i) {
+        for (size_t j = i + 1; j < balls.size(); ++j) {
+            // Debut du calcul de la distance entre deux boules 
+            sf::Vector2f pos1 = balls[i].getPosition();
+            sf::Vector2f pos2 = balls[j].getPosition();
+
+            sf::Vector2f diff = pos1 - pos2;
+            float distSquared = diff.x * diff.x + diff.y * diff.y;
+            // Fin du calcul de la distance entre les boules  
+
+            if (distSquared < radiusSquared) {
+                //on joue le son de collision 
+                ballCollisionSound.play();
+                // Calcul des nouvelles vitesses suivant les lois de la physique 
+                sf::Vector2f temp1 = ((mass - mass) * velocities[i] + (2 * mass * velocities[j])) / (mass + mass);
+                sf::Vector2f temp2 = ((mass - mass) * velocities[j] + (2 * mass * velocities[i])) / (mass + mass);
+
+                // On passe les nouvelles valeurs de la vitesse de déplacement aux boules respectives 
+                velocities[i] = temp1;
+                velocities[j] = temp2;
+
+                // Déplacement des boules pour éviter qu'elles restent collées
+                float dist = std::sqrt(distSquared);
+                float overlap = 0.5f * (dist - radius * 2);
+                balls[i].move(-diff / dist * overlap);
+                balls[j].move(diff / dist * overlap);
+            }
+        }
+    }
+}
+
+
+
+// Fonction pour le système de friction qui vas permettre aux boules de s'arrêter au bout d'un moment 
+static void applyFriction(std::vector<sf::Vector2f>& velocities, float friction) {
+    for (auto& velocity : velocities) {
+        velocity.x *= friction;
+        velocity.y *= friction;
+
+        // Si la vitesse est très petite, on l'arrête
+        if (std::abs(velocity.x) < 0.01f) velocity.x = 0;
+        if (std::abs(velocity.y) < 0.01f) velocity.y = 0;
+    }
+}
+
+// Initialiser les poches comme des sf::CircleShape
+std::vector<sf::CircleShape> pockets;
+
+void setupPockets(std::vector<sf::CircleShape>& pockets) {
+    const float pocketRadius = 13.f;
+    const float width = 800.f; // Largeur de la table
+    const float height = 400.f; // Hauteur de la table
+    // Positions des poches (trous) sur la table
+    float pocketWidthMin = 67.5f;
+    float pocketWidthMax = 787.5f;
+    float pocketHeihtMin = 175.f;
+    float pocketWidthMiddle = 427.5f;
+    float pocketHeihtMax = 505.f;
+
+    const std::vector<sf::Vector2f> pocketPositions = {
+        {pocketWidthMin, pocketHeihtMin}, {pocketWidthMax, pocketHeihtMin}, {pocketWidthMax, pocketHeihtMax}, {pocketWidthMin, pocketHeihtMax}, 
+        {pocketWidthMiddle, pocketHeihtMin}, {pocketWidthMiddle, pocketHeihtMax}
+    };
+
+    for (const auto& pos : pocketPositions) {
+        sf::CircleShape pocket(pocketRadius);
+        pocket.setOrigin(pocketRadius, pocketRadius); // Origine au centre
+        pocket.setFillColor(sf::Color::Transparent);
+        pocket.setPosition(pos);
+        pockets.push_back(pocket);
+    }
+}
+
+// Fonction pour vérifier si une boule est tombée dans un trou
+static void checkBallsInPockets(std::vector<sf::CircleShape>& balls, std::vector<sf::Vector2f>& velocities, const std::vector<sf::CircleShape>& pockets, sf::Sound& inPocket
+    , int& player1_score, int& player2_score, bool& turnPlayer1) {
+    const float radius = balls[0].getRadius(); // On récupère le rayon d'une boule (elles ont toutes le même rayon)
+
+    // Parcourt chaque boule
+    for (size_t i = 0; i < balls.size(); ++i) {
+        sf::Vector2f position = balls[i].getPosition(); // Récupère la position de la boule actuelle
+
+        // Parcourt chaque poche
+        for (const auto& pocket : pockets) {
+            sf::Vector2f pocketPos = pocket.getPosition(); // Récupère la position de la poche actuelle
+            float pocketRadius = pocket.getRadius(); // Récupère le rayon de la poche
+
+            // Vérifie si la distance entre la boule et la poche est inférieure à la somme de leurs rayons
+            if (std::hypot(position.x - pocketPos.x, position.y - pocketPos.y) < pocketRadius + radius) {
+                inPocket.play(); // Joue le son de la boule tombant dans la poche
+
+                // Supprime la boule et sa vélocité des vecteurs respectifs
+                balls.erase(balls.begin() + i);
+                velocities.erase(velocities.begin() + i);
+
+                // Mise à jour des scores 
+                if (turnPlayer1) {
+                    player1_score++;    // Incrémente le score du joueur 1
+                }
+                else {
+                    player2_score++;    // Incrémente le score du joueur 2
+                }
+
+                --i; // Ajuste l'indice pour compenser la suppression de la boule
+                break; // Sort de la boucle des poches pour passer à la boule suivante
+            }
+        }
+    }
+}
+
+// Fonction pour vérifier si une boule est dans une poche
+static bool isBallInPocket(const sf::CircleShape& ball) {
+    for (const auto& pocket : pockets) {
+        float dx = ball.getPosition().x - pocket.getPosition().x;
+        float dy = ball.getPosition().y - pocket.getPosition().y;
+        float distance = std::sqrt(dx * dx + dy * dy);
+        if (distance < (ball.getRadius() + pocket.getRadius())) {
+            return true;  // Retourne true si la boule est dans une poche
+        }
+    }
+    return false;  // Retourne false si la boule n'est dans aucune poche
+}
+
+
+unsigned int width = 1000;  // Largeur de la fenêtre 
+unsigned int height = 800;  // Hauteur de la fenêtre 
+
+// Fonction du lancement du Jeu
+void GameStart() {
+    sf::RenderWindow window(sf::VideoMode(width, height), "Jeu de Billard");
+
+    // Chargement de l'audio de fond
+    sf::SoundBuffer main_music;
+    LoadSourceSound(main_music, "res/Sounds/fone.ogg");
+    sf::Sound mainMusic(main_music);
+    mainMusic.setVolume(20.f);
+    mainMusic.play();
+    mainMusic.setLoop(true);     //On boucle la musique
+
+    //chargement de l'audio de collision de boule 
+    sf::SoundBuffer ball_collision;
+    LoadSourceSound(ball_collision, "res/Sounds/ball.ogg");
+    sf::Sound ballCollisionSound(ball_collision);
+
+    //chargement de l'audio de collision avec la table 
+    sf::SoundBuffer table_collision;
+    LoadSourceSound(table_collision, "res/Sounds/border.ogg");
+    sf::Sound tableCollisionSound(table_collision);
+    
+    //chargement de l'audio de collision avec les trous 
+    sf::SoundBuffer pocket_collision;
+    LoadSourceSound(pocket_collision, "res/Sounds/hole.ogg");
+    sf::Sound inPocket(pocket_collision);
+
+    // Chargement de la texture du background
+    sf::Texture backgroundTexture;
+    LoadTexture(backgroundTexture, "res/Textures/simple.jpg");
+    sf::Sprite background;
+    background.setTexture(backgroundTexture);
+    background.setScale(width / 234.f, height / 234.f);
+
+    // Chargement de la texture de la table
+    sf::Texture tableTexture;
+    LoadTexture(tableTexture, "res/Textures/board.png");
+
+    // Chargement de la texture des boules
+    sf::Texture ballTexture;
+    LoadTexture(ballTexture, "res/Textures/ball.png");
+
+    // Création de la table
+    sf::RectangleShape table(sf::Vector2f(800, 400));
+    table.setTexture(&tableTexture);
+    table.setPosition(30, 140);
+    sf::FloatRect tableBounds = table.getGlobalBounds();
+
+    // Création des boules
+    std::vector<sf::CircleShape> balls;
+    setupBalls(balls, ballTexture);
+
+    // Création des vecteurs de vitesse pour les boules
+    std::vector<sf::Vector2f> velocities(balls.size(), sf::Vector2f(0.0f, 0.0f));  // Initialiser avec une vitesse nulle
+
+    // Création de la bille blanche
+    sf::CircleShape cueBall(15.0f);
+    cueBall.setTexture(&ballTexture);
+    cueBall.setOrigin(15.0f, 15.0f);
+    //
+    cueBall.setFillColor(sf::Color::Black);
+    //
+    cueBall.setPosition(width / 2.f - 350.f, height / 2.f - 50.f);  // Positionner la bille blanche au centre de la table avec un décalage
+    balls.push_back(cueBall);   // Ajout dans le vecteur de sf::CircleShape 
+    velocities.push_back(sf::Vector2f(0.0f, 0.0f));  // Initialiser la vitesse à zéro pour la bille blanche
+
+    std::vector<sf::CircleShape> pockets;
+    setupPockets(pockets);
+
+    //police d'écriture 
+    sf::Font font;
+    //chargement police
+    LoadFont(font, "res/Fonts/times-new-roman.ttf");
+    sf::Text text_turn, endText;  // Ajout du texte pour afficher le joueur actuel et le texte de fin de jeu
+    WriteInWindow(font, text_turn, " Tour joueuer 1", 40);// Initialisation du texte pour afficher le joueur actuel
+    sf::Text player1ScoreText, player2ScoreText;  // Textes pour afficher les scores des joueurs
+    WriteInWindow(font, player1ScoreText, "Joueur 1 : 0", 30);  // Initialisation du texte pour le score du joueur 1
+    WriteInWindow(font, player2ScoreText, "Joueur 2 : 0", 30);  // Initialisation du texte pour le score du joueur 2
+
+    // Positionnement des textes de score
+    player1ScoreText.setPosition(100, 80);  // Position en haut à gauche pour le joueur 1
+    text_turn.setPosition(300, 80);   //Positionnement du texte qui affiche le joueur 
+    player2ScoreText.setPosition(600, 80);  // Position en dessous du score du joueur 1 pour le joueur 2
+
+
+    const float friction = 0.99f;  // Coefficient de friction
+
+    bool pause = false;  // Variable pour mettre le jeu en Pause
+    //bool readyToShoot = true;  // Variable pour indiquer si le joueur peut frapper
+    float launchPower = 0.0f;   // Niveau de puissance du coup
+    float maxPowerLevel = 10.0f;   // Puissance maximale du coup
+    bool increasingPower = true;  // Variable pour augmenter la puissance
+
+    // Variables pour la gestion des scores
+    int player1Score = 0;   // Score du joueur 1
+    int player2Score = 0;   // Score du joueur 2
+    bool turnPlayer1 = true;    // Le joueur actuel (1 ou 2)
+    bool gameEnd = false;   // Indicateur de fin de jeu
+
+    // Initialisation de la bille blanche en attente de lancement
+    bool iscueBallLaunched = false; // Variable pour indiquer si le joueur peut frapper
+    bool isDirectionValidated = false;  // Indique si la direction a été validée par un clic gauche
+    sf::Vector2f cueBallPosition;   // Pour stocker la position actuelle de la bille blanche
+    // Position initiale de la bille blanche
+    cueBallPosition = sf::Vector2f(width / 2.f - 350.f, height / 2.f - 50.f);
+    sf::Vector2f launchDirection;   // Direction du lancement
+    balls.back().setPosition(cueBallPosition);
+
+    sf::Clock clock;    // Création d'une horloge 
+
+    while (window.isOpen()) {
+        sf::Event event;
+        while (window.pollEvent(event)) {
+            if (event.type == sf::Event::Closed)
+                window.close();
+
+            // Pour mettre sur pause on appui sur la barre Espace 
+            if (event.type == sf::Event::KeyPressed) {
+                if (event.key.code == sf::Keyboard::P)
+                    pause = !pause;
+            }
+
+            // Détection du clic gauche de la souris pour valider la direction
+            if (event.type == sf::Event::MouseButtonPressed && event.mouseButton.button == sf::Mouse::Left) {
+                isDirectionValidated = true;
+            }
+        }
+
+        // Mise à jour des scores et du texte des joueurs
+        player1ScoreText.setString("Joueur 1 : " + std::to_string(player1Score));
+        player2ScoreText.setString("Joueur 2 : " + std::to_string(player2Score));
+        text_turn.setString(turnPlayer1 ? " Tour joueuer 1" : " Tour joueuer 2");
+
+
+        // Si on est n'est pas en pause
+        if (!pause) {
+            if (clock.getElapsedTime().asMilliseconds() > 1000.f / 60.f) {    // On bloque la vitesse du jeu à 60 fps
+
+                // Vérification les collisions avec les bords
+                checkCollisionsWithTable(balls, velocities, tableBounds, tableCollisionSound);
+
+                // Vérification les collisions entre les boules
+                checkCollisionsBetweenBalls(balls, velocities, ballCollisionSound);
+
+                // Vérification si les boules sont tombées dans les poches
+                checkBallsInPockets(balls, velocities, pockets, inPocket, player1Score, player2Score, turnPlayer1);
+
+                // On applique la friction
+                applyFriction(velocities, friction);
+
+                // Mettre à jour les positions des boules
+                for (size_t i = 0; i < balls.size(); ++i) {
+                    balls[i].move(velocities[i]);
+                }
+
+                // Vérifier si le jeu est terminé (toutes les boules sont dans les poches)
+                if (balls.size() == 1) {
+                    gameEnd = true;  // Indique que le jeu est terminé
+                    if (player1Score > player2Score) {
+                        endText.setString("Le joueur 1 a gagne!");  // Affiche que le joueur 1 a gagné
+                    }
+                    else if (player2Score > player1Score) {
+                        endText.setString("Le joueur 2 a gagne!");  // Affiche que le joueur 2 a gagné
+                    }
+                    else {
+                        endText.setString("Match nul!");  // Affiche qu'il y a un match nul
+                    }
+                    WriteInWindow(font, endText, endText.getString(), 80);  // Met à jour le texte de fin de jeu
+                }
+
+                // Gestion du tir du joueur
+                if (!iscueBallLaunched) {
+                        // Capturer la position de la souris
+                        sf::Vector2i mousePosition = sf::Mouse::getPosition(window);
+                        sf::Vector2f mousePositionF(static_cast<float>(mousePosition.x), static_cast<float>(mousePosition.y));
+
+                        // Calculer la direction du tir
+                        sf::Vector2f direction = mousePositionF - cueBallPosition;
+                        float length = std::sqrt(direction.x * direction.y + direction.y * direction.y);
+
+                        // Eviter la division par zéro
+                        if (length != 0.f) {
+                            launchDirection = direction / length;
+                        }
+                        else {
+                            launchDirection = sf::Vector2f(1.f, 0.f);
+                        }
+
+                        // Gestion de la puissance du tir
+                        if (isDirectionValidated && sf::Keyboard::isKeyPressed(sf::Keyboard::Space)) {
+                        // Lancer la bille blanche avec la puissance déterminée
+                        velocities.back() = launchDirection * launchPower;
+                        launchPower = 0.0f;
+                        iscueBallLaunched = true;
+                        isDirectionValidated = false;
+                        }
+
+                    // Mettre à jour la position de la bille blanche
+                    cueBallPosition = balls.back().getPosition();
+
+                    // Ajuster la puissance du tir
+                    if (increasingPower) {
+                        launchPower += 0.1f;
+                        if (launchPower >= maxPowerLevel) {
+                            increasingPower = false;
+                        }
+                    }
+                    else {
+                        launchPower -= 0.1f;
+                        if (launchPower <= 0.0f) {
+                            increasingPower = true;
+                        }
+                    }
+                }
+                else {
+                    iscueBallLaunched = true;
+                }
+
+                clock.restart();  // Redémarrer l'horloge pour la prochaine itération
+            }
+
+            // Vérification si toutes les boules sont arrêtées pour permettre le prochain tour
+            bool allBallsStopped = std::all_of(velocities.begin(), velocities.end(), [](const sf::Vector2f& v) {
+                return v.x == 0.f && v.y == 0.f;
+                });
+
+            if (allBallsStopped) {
+                iscueBallLaunched = false;
+                turnPlayer1 = !turnPlayer1;
+            }
+        }
+
+        window.clear();
+        window.draw(background);
+        window.draw(table);
+
+        for (const auto& ball : balls) {
+            window.draw(ball);
+        }
+
+        for (const auto& pocket : pockets) {
+            window.draw(pocket);
+        }
+
+        // Dessiner la jauge de puissance
+        sf::RectangleShape powerBar(sf::Vector2f(60, launchPower * 40));  // Taille de la jauge
+        powerBar.setFillColor(sf::Color::Red);
+        powerBar.setOutlineThickness(2.f);
+        powerBar.setOutlineColor(sf::Color::Black);
+        powerBar.setPosition(width - 100, height - 60 - launchPower * 40);  // 
+        window.draw(powerBar);
+        window.draw(text_turn);  // Dessine le texte du joueur actuel
+        window.draw(player1ScoreText);  // Dessine le texte du score du joueur 1
+        window.draw(player2ScoreText);  // Dessine le texte du score du joueur 2
+
+        if (gameEnd) {
+            window.draw(endText);  // Dessine le texte de fin de jeu si le jeu est terminé
+        }
+
+
+        window.display();
+    }
+
+}
+
+// Menu des options 
+void Option() {
+
+}
+
+
+// Menu principal 
+void Menu() {
+
+    //Définition de la fenêtre du menu principale 
+    sf::RenderWindow mainMenu(sf::VideoMode(width, height), "Jeu de Billard");
+
+    //police d'écriture 
+    sf::Font font;
+    //chargement police
+    LoadFont(font, "res/Fonts/times-new-roman.ttf");
+
+    sf::Text titleText;
+    WriteInWindow(font, titleText, "Jeu de Billard", 70);   // Initialisation du texte pour afficher le titre
+    titleText.setPosition(300, 80); // Positionnement des textes du titre 
+
+    //chargement de la texture de l'arrière plan 
+    sf::Texture backgroundTexture;
+    LoadTexture(backgroundTexture, "res/Textures/intro.jpg");
+    sf::Sprite background;
+    background.setTexture(backgroundTexture);
+
+    //Boutton 
+    sf::RectangleShape play, option, quit;
+    float button_width = 450.f;
+    float button_height = 90.f;
+    float offsetHeight = 30.f;
+    float offsetWidth = 130.f;
+    sf::Texture buttonTexture;
+    LoadTexture(buttonTexture, "res/Textures/button.png");
+
+    //Pour le son
+    sf::SoundBuffer mainMenuSoundbuffer;
+    //chargement du song 
+    LoadSourceSound(mainMenuSoundbuffer, "res/Sounds/intro.ogg");
+    sf::Sound music;
+    music.setBuffer(mainMenuSoundbuffer);
+    music.setLoop(true);
+    music.setVolume(40.f);
+    music.play();
+
+    //pour le boutton play 
+    play.setOrigin(button_width / 2.f, button_height / 2.f);
+    play.setSize(sf::Vector2f(button_width, button_height));
+    play.setPosition(sf::Vector2f(width / 2.f, height / 2.f));
+    play.setTexture(&buttonTexture);
+    sf::Text playText;
+    playText.setPosition(width / 2.f - button_width / 2.f + offsetWidth, height / 2.f - button_height / 2.f);
+    WriteInWindow(font, playText, "JOUER");
+
+    //pour le boutton option 
+    option.setOrigin(button_width / 2.f, button_height / 2.f);
+    option.setSize(sf::Vector2f(button_width, button_height));
+    option.setPosition(sf::Vector2f(width / 2.f, height / 2.f + offsetHeight + button_height));
+    option.setTexture(&buttonTexture);
+    sf::Text optionText;
+    optionText.setPosition(width / 2.f - button_width / 2.f + offsetWidth / 4.f, height / 2.f - button_height / 2.f + offsetHeight + button_height);
+    WriteInWindow(font, optionText, "Comment jouer");
+
+    //pour le boutton quitter 
+    quit.setOrigin(button_width / 2.f, button_height / 2.f);
+    quit.setSize(sf::Vector2f(button_width, button_height));
+    quit.setPosition(sf::Vector2f(width / 2.f, height / 2.f + button_height * 2.f + offsetHeight * 2.f));
+    quit.setTexture(&buttonTexture);
+    sf::Text quitText;
+    quitText.setPosition(width / 2.f - button_width / 2.f + offsetWidth / 1.5f, height / 2.f - button_height / 2.f + button_height * 2.f + offsetHeight * 2.f);
+    WriteInWindow(font, quitText, "QUITTER");
+
+    //gestion du menu principal 
+    while (mainMenu.isOpen()) {
+        sf::Event events;
+        while (mainMenu.pollEvent(events)) {
+            if (events.type == sf::Event::Closed)
+                mainMenu.close();
+
+            //Touche souris PLAY
+            if (events.type == sf::Event::MouseButtonPressed) {
+                if (events.mouseButton.button == sf::Mouse::Left) {
+                    if (ButtonCollision(events.mouseButton.x + button_width / 2, events.mouseButton.y + button_height / 2, play, button_width, button_height)) {
+                        /*astuce debug std::cout << "ok" << std::endl;*/
+                        music.stop();
+                        mainMenu.close();
+                        //lacer le jeu principal
+                        GameStart();
+                    }
+                }
+            }
+            //Touche souris OPTION
+            if (events.type == sf::Event::MouseButtonPressed) {
+                if (events.mouseButton.button == sf::Mouse::Left) {
+                    if (ButtonCollision(events.mouseButton.x + button_width / 2, events.mouseButton.y + button_height / 2, option, button_width, button_height)) {
+                        /*astuce debug std::cout << "ok" << std::endl;*/
+                        mainMenu.close();
+                        //lacer le menu des options
+                        Option();
+                    }
+                }
+            }
+            //Touche souris QUIT
+            if (events.type == sf::Event::MouseButtonPressed) {
+                if (events.mouseButton.button == sf::Mouse::Left) {
+                    if (ButtonCollision(events.mouseButton.x + button_width / 2, events.mouseButton.y + button_height / 2, quit, button_width, button_height)) {
+                        /*astuce debug std::cout << "ok" << std::endl;*/
+                        //quitter le jeu 
+                        mainMenu.close();
+                    }
+                }
+            }
+            //Touche clavier  
+            if (events.type == sf::Event::KeyPressed) {
+                if (events.key.code == sf::Keyboard::Enter) {
+                    mainMenu.close();
+                    //lacer le jeu principal 
+                    GameStart();
+                }
+            }
+        }
+
+        mainMenu.clear();
+        mainMenu.draw(background);
+        mainMenu.draw(titleText);
+        mainMenu.draw(play);
+        mainMenu.draw(playText);
+        mainMenu.draw(option);
+        mainMenu.draw(optionText);
+        mainMenu.draw(quit);
+        mainMenu.draw(quitText);
+        mainMenu.display();
+    }
+}
+
+int main() {
+    // Lancement du menu principal
+    Menu();
+    return 0;
+}
