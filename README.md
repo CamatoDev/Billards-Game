@@ -13,6 +13,7 @@ Ce projet est une simulation de jeu de billard développée en C++ utilisant la 
 - [Gestion des Entrées](#Gestion-des-Entrées)
 - [Graphismes et Ressources](#Graphismes-et-Ressources)
 - [Interface Utilisateur (UI)](#Interface-Utilisateur (UI))
+- [Audio](#Audio)
 - [Optimisation et Débogage](#Optimisation-et-Débogage)
 - [Perspectives d'Avenir](#Perspectives-d'Avenir)
 - [Contributions](#Contributions)
