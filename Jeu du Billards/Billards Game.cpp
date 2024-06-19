@@ -12,13 +12,13 @@ bool ButtonCollision(float cursor_x, float cursor_y, const sf::RectangleShape& b
         && cursor_y < box.getPosition().y + box_height;
 }
 
-// Fonction pour écrire du texte dans la fenêtre
+// Fonction pour écrire du texte dans les fenêtres
 void WriteInWindow(sf::Font& font, sf::Text& text, const sf::String& str, float size = 60) {
-    text.setFont(font);
-    text.setString(str);
-    text.setCharacterSize(size);
-    text.setFillColor(size > 30 ? sf::Color::White : sf::Color::Green);
-    text.setStyle(sf::Text::Bold);
+    text.setFont(font); // On passe la police d'écriture 
+    text.setString(str);    // On passe la chaîne de caractère à afficher 
+    text.setCharacterSize(size);    // On passe la taille du texte 
+    text.setFillColor(size > 30 ? sf::Color::White : sf::Color::Green); // On resiegne la couleur du texte (Blanc si le texte est de taille > 30 et vert dans l'autre)
+    text.setStyle(sf::Text::Bold);  // On écrit en gras 
 }
 
 // Fonction pour charger une texture
@@ -70,8 +70,8 @@ static void checkCollisionsWithTable(std::vector<sf::CircleShape>& balls, std::v
     for (size_t i = 0; i < balls.size(); ++i) {     // Pour chaque boule dans notre vecteur 
         sf::Vector2f position = balls[i].getPosition();     // On récupère la position de la boule 
         sf::Vector2f& velocity = velocities[i];             // On récupère la vitesse de déplacement de la boule 
-        float borderUp = 30.f;    // Valeur représentant l'écart entre le bord réel de l'image et ce de la table 
-        float borderDown = 30.f;    // Valeur représentant l'écart entre le bord réel de l'image et ce de la table 
+        float borderUp = 35.f;    // Valeur représentant l'écart entre le bord réel de l'image et ce de la table 
+        float borderDown = 35.f;    // Valeur représentant l'écart entre le bord réel de l'image et ce de la table 
 
         // Vérifier collision avec le bord gauche
         if (position.x - radius < tableBounds.left + borderUp) {
@@ -142,10 +142,10 @@ static void checkCollisionsBetweenBalls(std::vector<sf::CircleShape>& balls, std
 // Fonction pour le système de friction qui vas permettre aux boules de s'arrêter au bout d'un moment 
 static void applyFriction(std::vector<sf::Vector2f>& velocities, float friction) {
     for (auto& velocity : velocities) {
-        velocity.x *= friction;
-        velocity.y *= friction;
+        velocity.x *= friction; // On multiplie la vitesse de déplacement en X par la force de friction 
+        velocity.y *= friction; // On multiplie la vitesse de déplacement en Y par la force de friction
 
-        // Si la vitesse est très petite, on l'arrête
+        // Si la vitesse est très petite, on arrête la boule 
         if (std::abs(velocity.x) < 0.01f) velocity.x = 0;
         if (std::abs(velocity.y) < 0.01f) velocity.y = 0;
     }
@@ -161,12 +161,12 @@ void setupPockets(std::vector<sf::CircleShape>& pockets) {
     // Positions des poches (trous) sur la table
     float pocketWidthMin = 67.5f;
     float pocketWidthMax = 787.5f;
-    float pocketHeihtMin = 175.f;
+    float pocketHeihtMin = 165.f;
     float pocketWidthMiddle = 427.5f;
-    float pocketHeihtMax = 505.f;
+    float pocketHeihtMax = 515.f;
 
     const std::vector<sf::Vector2f> pocketPositions = {
-        {pocketWidthMin, pocketHeihtMin}, {pocketWidthMax, pocketHeihtMin}, {pocketWidthMax, pocketHeihtMax}, {pocketWidthMin, pocketHeihtMax}, 
+        {pocketWidthMin, pocketHeihtMin + 5.f}, {pocketWidthMax, pocketHeihtMin + 5.f}, {pocketWidthMax, pocketHeihtMax - 5.f}, {pocketWidthMin, pocketHeihtMax - 5.f},
         {pocketWidthMiddle, pocketHeihtMin}, {pocketWidthMiddle, pocketHeihtMax}
     };
 
@@ -202,7 +202,7 @@ static void checkBallsInPockets(std::vector<sf::CircleShape>& balls, std::vector
                 velocities.erase(velocities.begin() + i);
 
                 // Mise à jour des scores 
-                if (turnPlayer1) {
+                if (!turnPlayer1) {
                     player1_score++;    // Incrémente le score du joueur 1
                 }
                 else {
@@ -358,6 +358,22 @@ void GameStart() {
             // Détection du clic gauche de la souris pour valider la direction
             if (event.type == sf::Event::MouseButtonPressed && event.mouseButton.button == sf::Mouse::Left) {
                 isDirectionValidated = true;
+                // Capturer la position de la souris
+                sf::Vector2i mousePosition = sf::Mouse::getPosition(window);
+                sf::Vector2f mousePositionF(static_cast<float>(mousePosition.x), static_cast<float>(mousePosition.y));
+                
+                // Calculer la direction du tir
+                sf::Vector2f direction = mousePositionF - cueBallPosition;
+                float length = std::sqrt(std::abs(direction.x * direction.y + direction.y * direction.y));
+
+                // Eviter la division par zéro
+                if (length != 0.f) {
+                    launchDirection = direction / length;
+                }
+                else {
+                    launchDirection = sf::Vector2f(1.f, 0.f);
+                }
+
             }
         }
 
@@ -365,6 +381,9 @@ void GameStart() {
         player1ScoreText.setString("Joueur 1 : " + std::to_string(player1Score));
         player2ScoreText.setString("Joueur 2 : " + std::to_string(player2Score));
         text_turn.setString(turnPlayer1 ? " Tour joueuer 1" : " Tour joueuer 2");
+
+        // Astuce debug 
+        std::cout << turnPlayer1 << std::endl;
 
 
         // Si on est n'est pas en pause
@@ -400,27 +419,12 @@ void GameStart() {
                     else {
                         endText.setString("Match nul!");  // Affiche qu'il y a un match nul
                     }
-                    WriteInWindow(font, endText, endText.getString(), 80);  // Met à jour le texte de fin de jeu
+                    WriteInWindow(font, endText, endText.getString(), 70);  // Met à jour le texte de fin de jeu
+                    endText.setPosition(width / 2.f - 350.f, height / 2.f - 50.f);   //Positionnement du texte de fin de jeu
                 }
 
                 // Gestion du tir du joueur
                 if (!iscueBallLaunched) {
-                        // Capturer la position de la souris
-                        sf::Vector2i mousePosition = sf::Mouse::getPosition(window);
-                        sf::Vector2f mousePositionF(static_cast<float>(mousePosition.x), static_cast<float>(mousePosition.y));
-
-                        // Calculer la direction du tir
-                        sf::Vector2f direction = mousePositionF - cueBallPosition;
-                        float length = std::sqrt(direction.x * direction.y + direction.y * direction.y);
-
-                        // Eviter la division par zéro
-                        if (length != 0.f) {
-                            launchDirection = direction / length;
-                        }
-                        else {
-                            launchDirection = sf::Vector2f(1.f, 0.f);
-                        }
-
                         // Gestion de la puissance du tir
                         if (isDirectionValidated && sf::Keyboard::isKeyPressed(sf::Keyboard::Space)) {
                         // Lancer la bille blanche avec la puissance déterminée
@@ -428,6 +432,7 @@ void GameStart() {
                         launchPower = 0.0f;
                         iscueBallLaunched = true;
                         isDirectionValidated = false;
+                        turnPlayer1 = !turnPlayer1;
                         }
 
                     // Mettre à jour la position de la bille blanche
@@ -461,7 +466,6 @@ void GameStart() {
 
             if (allBallsStopped) {
                 iscueBallLaunched = false;
-                turnPlayer1 = !turnPlayer1;
             }
         }
 
