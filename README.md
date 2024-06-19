@@ -107,7 +107,7 @@ Le code a été optimisé pour assurer une simulation fluide. Les calculs physiq
 
 ## Auteur
 
-- **[CamatoDev](https://github.com/CamatoDev))**
+- **[CamatoDev](https://github.com/CamatoDev)**
 
 ## Licence
 
