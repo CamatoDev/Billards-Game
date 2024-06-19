@@ -143,6 +143,7 @@
   </ItemGroup>
   <ItemGroup>
     <Text Include="Alpha.txt" />
+    <Text Include="Beta V2.txt" />
     <Text Include="Béta.txt" />
     <Text Include="Code avec son.txt" />
     <Text Include="Code boule collision entrante.txt" />

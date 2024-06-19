@@ -43,5 +43,8 @@
     <Text Include="Béta.txt">
       <Filter>Fichiers sources</Filter>
     </Text>
+    <Text Include="Beta V2.txt">
+      <Filter>Fichiers sources</Filter>
+    </Text>
   </ItemGroup>
 </Project>
