@@ -115,4 +115,4 @@ Ce projet est sous licence MIT.
 
 ## Liens Utiles
 
-- [Mon profil LinkedIn](https://www.linkedin.com/in/votreprofil)
+- Mon prophil LinkedIn : [Marco Tomba](https://www.linkedin.com/in/marco-tomba-574b042b7/)
