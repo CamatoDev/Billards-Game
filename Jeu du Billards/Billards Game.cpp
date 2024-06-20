@@ -277,10 +277,6 @@ void GameStart() {
     sf::Texture tableTexture;
     LoadTexture(tableTexture, "res/Textures/board.png");
 
-    // Chargement de la texture des boules
-    sf::Texture ballTexture;
-    LoadTexture(ballTexture, "res/Textures/ball.png");
-
     // Création de la table
     sf::RectangleShape table(sf::Vector2f(800, 400));
     table.setTexture(&tableTexture);
@@ -308,23 +304,26 @@ void GameStart() {
     bool showCue = true; // Indicateur pour montrer ou cacher la queue de billard
 
     // Chargement des textures pour les boules
-    sf::Texture ballTextures[16];
-    LoadTexture(ballTextures[0], "res/Textures/ball.png");
-    LoadTexture(ballTextures[1], "res/Textures/ball.png");
-    LoadTexture(ballTextures[2], "res/Textures/ball.png");
-    LoadTexture(ballTextures[3], "res/Textures/ball.png");
-    LoadTexture(ballTextures[4], "res/Textures/ball.png");
-    LoadTexture(ballTextures[5], "res/Textures/ball.png");
-    LoadTexture(ballTextures[6], "res/Textures/ball.png");
-    LoadTexture(ballTextures[7], "res/Textures/ball.png");
-    LoadTexture(ballTextures[8], "res/Textures/ball.png");
-    LoadTexture(ballTextures[9], "res/Textures/ball.png");
-    LoadTexture(ballTextures[10], "res/Textures/ball.png");
-    LoadTexture(ballTextures[11], "res/Textures/ball.png");
-    LoadTexture(ballTextures[12], "res/Textures/ball.png");
-    LoadTexture(ballTextures[13], "res/Textures/ball.png");
-    LoadTexture(ballTextures[14], "res/Textures/ball.png");
-    LoadTexture(ballTextures[15], "res/Textures/ball.png");
+    sf::Texture ballTextures[15];
+    LoadTexture(ballTextures[0], "res/Textures/10.png");
+    LoadTexture(ballTextures[1], "res/Textures/12.png");
+    LoadTexture(ballTextures[2], "res/Textures/14.png");
+    LoadTexture(ballTextures[3], "res/Textures/8.png");
+    LoadTexture(ballTextures[4], "res/Textures/9.png");
+    LoadTexture(ballTextures[5], "res/Textures/11.png");
+    LoadTexture(ballTextures[6], "res/Textures/5.png");
+    LoadTexture(ballTextures[7], "res/Textures/7.png");
+    LoadTexture(ballTextures[8], "res/Textures/6.png");
+    LoadTexture(ballTextures[9], "res/Textures/4.png");
+    LoadTexture(ballTextures[10], "res/Textures/15.png");
+    LoadTexture(ballTextures[11], "res/Textures/2.png");
+    LoadTexture(ballTextures[12], "res/Textures/9.png");
+    LoadTexture(ballTextures[13], "res/Textures/3.png");
+    LoadTexture(ballTextures[14], "res/Textures/1.png");
+
+    // Chargement de la texture de la boule blanche 
+    sf::Texture cueBallTexture;
+    LoadTexture(cueBallTexture, "res/Textures/ball.png");
 
 
     // Création des boules
@@ -353,11 +352,8 @@ void GameStart() {
 
     // Création de la bille blanche
     sf::CircleShape cueBall(15.0f);
-    cueBall.setTexture(&ballTexture);
+    cueBall.setTexture(&cueBallTexture);
     cueBall.setOrigin(15.0f, 15.0f);
-    //
-    cueBall.setFillColor(sf::Color::Black);
-    //
     cueBall.setPosition(width / 2.f - 350.f, height / 2.f - 50.f);  // Positionner la bille blanche au centre de la table avec un décalage
     balls.push_back(cueBall);   // Ajout dans le vecteur de sf::CircleShape 
     velocities.push_back(sf::Vector2f(0.0f, 0.0f));  // Initialiser la vitesse à zéro pour la bille blanche
@@ -682,7 +678,7 @@ void ShowInstructions() {
     sf::Text instructions, title;
     WriteInWindow(font, title, "Comment Jouer ?", 70.f);
     title.setPosition(width / 4.f, 100.f);
-    WriteInWindow(font, instructions, "Instructions du jeu:\n- Utilisez la souris pour viser.\n- Appuyez sur espace pour frapper la bille blanche.\n- Les boules se déplacent avec la friction.\n- Evitez les bordures et autres boules.", 25);
+    WriteInWindow(font, instructions, "Instructions du jeu:\n- Déplacez la souris pour viser.\n- Clique gauche de la souris pour valider.\n- La barre rouge représente la jauge de puissance.\n- Appuyez sur espace au moment de votre choix pour frapper la bille\n blanche avec la puissance voulu.\n- Si la boule blanche tombe dans une poche faite un clique droit sur la\n table à l'emplacement de votre choix pour la repositionner.\n- Faites entré toute les boules numérotés dans les poches.\n- celui qui fais entrer le plus de boule à gagné.\n \n Bon Match !", 25);
     instructions.setPosition(100.f, 250.f);
     instructions.setFillColor(sf::Color::White);
 
